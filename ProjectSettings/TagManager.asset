@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Fragment
+  - Enemy
   layers:
   - Default
   - TransparentFX
