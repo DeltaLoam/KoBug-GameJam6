@@ -11,7 +11,7 @@ public class EdgeFragment : MonoBehaviour
     void Start()
     {
         // ตั้ง Tag ให้ถูกต้อง
-        gameObject.tag = "fragment"; // ใช้ตาม tag ที่คุณตั้ง
+        gameObject.tag = "Fragment"; // ใช้ตาม tag ที่คุณตั้ง
         
         spriteRenderer = GetComponent<SpriteRenderer>();
         if (spriteRenderer != null)
