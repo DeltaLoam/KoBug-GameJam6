@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using UnityEngine.UI;
 
 public class PlayerController : MonoBehaviour
@@ -58,6 +59,24 @@ public class PlayerController : MonoBehaviour
     public GameObject dashEffect;
     public Image healthBar;
     
+    // New sprite references for special actions
+    [Header("Action Sprites")]
+    public Sprite triangleJumpSprite;    // Triangle sprite when jumping
+    public Sprite triangleDashSprite;    // Triangle sprite when dashing
+    private Sprite currentDefaultSprite; // Tracks normal sprite for current form
+    private bool isJumping = false;
+    
+    [Header("Audio")]
+    public AudioSource audioSource;
+    public AudioClip walkSound;
+    public AudioClip jumpSound;
+    public AudioClip dashSound;
+    public AudioClip hitSound;
+    public AudioClip transformSound;
+    public AudioClip collectSound;
+    public float footstepInterval = 0.3f;
+    private float footstepTimer = 0f;
+    
     [Header("UI")]
     public Text fragmentCountText;  // Drag your UI Text here in Inspector
     
@@ -79,6 +98,19 @@ public class PlayerController : MonoBehaviour
         // Initialize dash charges
         currentDashCharges = maxDashCharges;
         
+        // Initialize current sprite
+        currentDefaultSprite = semicircleSprite;
+        
+        // Initialize audio source if needed
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+        
         UpdatePlayerForm();
         UpdateTransformEnergyBar();
         UpdateHealthBar();
@@ -88,7 +120,16 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         // Check if standing on ground
+        bool wasGrounded = isGrounded;
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, 0.2f, groundLayer);
+        
+        // Handle landing from jump
+        if (!wasGrounded && isGrounded && isJumping)
+        {
+            isJumping = false;
+            UpdatePlayerForm(); // Reset to normal sprite
+            PlaySound(walkSound, 0.5f); // Landing sound
+        }
         
         // Don't control if dashing
         if (isDashing)
@@ -101,8 +142,27 @@ public class PlayerController : MonoBehaviour
                 {
                     dashEffect.SetActive(false);
                 }
+                // Reset sprite after dash
+                UpdatePlayerForm();
             }
             return;
+        }
+        
+        // Handle footstep sounds when moving
+        if (isGrounded && Mathf.Abs(rb.linearVelocity.x) > 0.5f)
+        {
+            footstepTimer -= Time.deltaTime;
+            if (footstepTimer <= 0)
+            {
+                PlaySound(walkSound, 0.4f);
+                footstepTimer = footstepInterval;
+            }
+        }
+        
+        // Reset footstep timer when stopping
+        if (Mathf.Abs(rb.linearVelocity.x) < 0.1f)
+        {
+            footstepTimer = 0;
         }
         
         // Update dash charge system
@@ -146,6 +206,16 @@ public class PlayerController : MonoBehaviour
         {
             rb.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
             jumpTimer = jumpCooldown;
+            isJumping = true;
+            
+            // Change sprite for jump
+            if (triangleJumpSprite != null)
+            {
+                playerRenderer.sprite = triangleJumpSprite;
+            }
+            
+            // Play jump sound
+            PlaySound(jumpSound, 1.0f);
         }
         
         // Reduce jump timer
@@ -304,6 +374,7 @@ public class PlayerController : MonoBehaviour
         }
         
         currentShape = newShape;
+        isJumping = false; // Reset jumping state on form change
         UpdatePlayerForm();
         
         // Play transform effect
@@ -311,21 +382,40 @@ public class PlayerController : MonoBehaviour
         {
             visualEffects.PlayTransformEffect(newShape);
         }
+        
+        // Play transform sound
+        PlaySound(transformSound, 0.8f);
     }
     
     private void UpdatePlayerForm()
     {
-        // Update sprite based on current shape
+        // Reset special actions flags
+        isDashing = false;
+        
+        // Update sprite based on current shape and action
         switch (currentShape)
         {
             case PlayerShape.Semicircle:
                 playerRenderer.sprite = semicircleSprite;
+                currentDefaultSprite = semicircleSprite;
                 break;
+                
             case PlayerShape.Triangle:
-                playerRenderer.sprite = triangleSprite;
+                // Use jump sprite if jumping
+                if (isJumping && triangleJumpSprite != null)
+                {
+                    playerRenderer.sprite = triangleJumpSprite;
+                }
+                else
+                {
+                    playerRenderer.sprite = triangleSprite;
+                }
+                currentDefaultSprite = triangleSprite;
                 break;
+                
             case PlayerShape.Rectangle:
                 playerRenderer.sprite = isReflecting ? rectangleReflectSprite : rectangleSprite;
+                currentDefaultSprite = rectangleSprite;
                 break;
         }
     }
@@ -350,6 +440,15 @@ public class PlayerController : MonoBehaviour
         {
             dashEffect.SetActive(true);
         }
+        
+        // Change sprite for dash if available
+        if (triangleDashSprite != null && currentShape == PlayerShape.Triangle)
+        {
+            playerRenderer.sprite = triangleDashSprite;
+        }
+        
+        // Play dash sound
+        PlaySound(dashSound, 1.0f);
         
         // Add dash effect
         if (visualEffects != null)
@@ -390,6 +489,9 @@ public class PlayerController : MonoBehaviour
         {
             visualEffects.ToggleReflectEffect(isReflecting);
         }
+        
+        // Play sound
+        PlaySound(transformSound, 0.6f);
         
         // Adjust movement during reflection
         if (isReflecting)
@@ -457,6 +559,9 @@ public class PlayerController : MonoBehaviour
             health = 0;
         }
         
+        // Play hit sound
+        PlaySound(hitSound, 1.0f);
+        
         // Play hurt effect
         if (visualEffects != null)
         {
@@ -495,42 +600,72 @@ public class PlayerController : MonoBehaviour
     }
 
     public void CollectFragment()
+{
+    collectedFragments++;
+    Debug.Log("Collected Edge Fragment: " + collectedFragments);
+    
+    // Play collect sound
+    PlaySound(collectSound, 0.7f);
+    
+    // Start glowing effect when collecting a fragment
+    StartCoroutine(GlowEffect());
+    
+    // Increase max transform energy
+    maxTransformEnergy += energyIncreasePerFragment;
+    
+    // Optionally also increase current energy by the same amount
+    currentTransformEnergy += energyIncreasePerFragment;
+    
+    // Update the UIs
+    UpdateTransformEnergyBar();
+    UpdateFragmentUI();
+    
+    // Notify GameManager
+    if (gameManager != null)
     {
-        collectedFragments++;
-        Debug.Log("Collected Edge Fragment: " + collectedFragments);
-        
-        // Increase max transform energy
-        maxTransformEnergy += energyIncreasePerFragment;
-        
-        // Optionally also increase current energy by the same amount
-        currentTransformEnergy += energyIncreasePerFragment;
-        
-        // Update the UIs
-        UpdateTransformEnergyBar();
-        UpdateFragmentUI();
-        
-        // Notify GameManager
-        if (gameManager != null)
-        {
-            gameManager.CollectFragment();
-        }
-        
-        // Form unlock notifications
-        if (collectedFragments == 1)
-        {
-            Debug.Log("Triangle form unlocked! Press 2 to transform.");
-        }
-        
-        if (collectedFragments == 3)
-        {
-            Debug.Log("Double dash unlocked!");
-        }
-        
-        if (collectedFragments == 5)
-        {
-            Debug.Log("Rectangle form unlocked! Press 3 to transform.");
-        }
+        gameManager.CollectFragment();
     }
+    
+    // Form unlock notifications
+    if (collectedFragments == 1)
+    {
+        Debug.Log("Triangle form unlocked! Press 2 to transform.");
+    }
+    
+    if (collectedFragments == 3)
+    {
+        Debug.Log("Double dash unlocked!");
+    }
+    
+    if (collectedFragments == 5)
+    {
+        Debug.Log("Rectangle form unlocked! Press 3 to transform.");
+    }
+}
+
+private IEnumerator GlowEffect()
+{
+    Color originalColor = playerRenderer.color;
+    Color glowColor = Color.yellow; // Yellow glow for fragment collection
+    
+    // Blink several times
+    int blinkCount = 3;
+    float blinkSpeed = 0.1f;
+    
+    for (int i = 0; i < blinkCount; i++)
+    {
+        // Glow on
+        playerRenderer.color = glowColor;
+        yield return new WaitForSeconds(blinkSpeed);
+        
+        // Glow off
+        playerRenderer.color = originalColor;
+        yield return new WaitForSeconds(blinkSpeed);
+    }
+    
+    // Ensure we end with the original color
+    playerRenderer.color = originalColor;
+}
     
     void OnTriggerEnter2D(Collider2D other)
     {
@@ -558,6 +693,15 @@ public class PlayerController : MonoBehaviour
         
         // Update the health bar
         UpdateHealthBar();
+    }
+    
+    // Helper method for playing sounds
+    public void PlaySound(AudioClip clip, float volume = 1.0f)
+    {
+        if (audioSource != null && clip != null)
+        {
+            audioSource.PlayOneShot(clip, volume);
+        }
     }
     
     void OnDrawGizmosSelected()

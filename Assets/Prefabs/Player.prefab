@@ -192,7 +192,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 4
+  m_GravityScale: 2
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -309,9 +309,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   semicircleMoveSpeed: 7
   triangleMoveSpeed: 3.5
-  jumpCooldown: 0.5
+  jumpCooldown: 1
   rectangleMoveSpeed: 2
-  jumpForce: 10
+  jumpForce: 11
   groundCheck: {fileID: 5163837450941074907}
   groundLayer:
     serializedVersion: 2
@@ -341,6 +341,16 @@ MonoBehaviour:
   rectangleReflectSprite: {fileID: -4178046375966092550, guid: 2b84890e8b92b4c96a430821da6d93bc, type: 3}
   dashEffect: {fileID: 0}
   healthBar: {fileID: 0}
+  triangleJumpSprite: {fileID: 0}
+  triangleDashSprite: {fileID: 0}
+  audioSource: {fileID: 0}
+  walkSound: {fileID: 0}
+  jumpSound: {fileID: 8300000, guid: 1a5b9bf8044e44101b994bc96c89ec06, type: 3}
+  dashSound: {fileID: 8300000, guid: 4243221da70af4f168ff9cf27e651a99, type: 3}
+  hitSound: {fileID: 8300000, guid: 80bf15aea4d4e4180abafc44de3adbc1, type: 3}
+  transformSound: {fileID: 8300000, guid: be176c8c987f949e791eacc39db0ee96, type: 3}
+  collectSound: {fileID: 8300000, guid: 7e6f3192ae2844d5bb43142788f6161d, type: 3}
+  footstepInterval: 0.3
   fragmentCountText: {fileID: 0}
 --- !u!114 &6990439708572785968
 MonoBehaviour:
