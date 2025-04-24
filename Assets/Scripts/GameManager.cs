@@ -114,8 +114,13 @@ public class GameManager : MonoBehaviour
     
     public void StartGame()
     {
+<<<<<<< Updated upstream
         // Start new game
         SceneManager.LoadScene("GameScene"); // Your game scene name
+=======
+        // เริ่มเกมใหม่
+        SceneManager.LoadScene("Part 1 scene 1"); // ชื่อซีนเกมของคุณ
+>>>>>>> Stashed changes
         
         // Show game UI
         ShowGameplayUI();
