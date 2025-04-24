@@ -259,7 +259,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 0}
   mainMenuUI: {fileID: 0}
-  gameplayUI: {fileID: 0}
+  gameplayUI: {fileID: 2638300391624714531}
   pauseMenuUI: {fileID: 0}
   gameOverUI: {fileID: 0}
   victoryUI: {fileID: 0}

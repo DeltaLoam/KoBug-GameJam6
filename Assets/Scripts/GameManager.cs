@@ -27,14 +27,6 @@ public class GameManager : MonoBehaviour
     public int totalFragmentsInLevel = 0;
     public int fragmentsCollected = 0;
     
-    [Header("Audio")]
-    public AudioClip menuMusic;
-    public AudioClip gameplayMusic;
-    public AudioClip gameOverSound;
-    public AudioClip victorySound;
-    
-    private AudioSource audioSource;
-    
     private void Awake()
     {
         // Singleton setup
@@ -47,12 +39,6 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
             return;
-        }
-        
-        audioSource = GetComponent<AudioSource>();
-        if (audioSource == null)
-        {
-            audioSource = gameObject.AddComponent<AudioSource>();
         }
     }
     
@@ -114,19 +100,11 @@ public class GameManager : MonoBehaviour
     
     public void StartGame()
     {
-<<<<<<< Updated upstream
-        // Start new game
-        SceneManager.LoadScene("GameScene"); // Your game scene name
-=======
         // เริ่มเกมใหม่
         SceneManager.LoadScene("Part 1 scene 1"); // ชื่อซีนเกมของคุณ
->>>>>>> Stashed changes
         
         // Show game UI
         ShowGameplayUI();
-        
-        // Play game music
-        PlayMusic(gameplayMusic);
         
         // Resume time
         Time.timeScale = 1f;
@@ -175,11 +153,9 @@ public class GameManager : MonoBehaviour
     }
     
     private IEnumerator VictorySequence()
-    {
-        PlaySound(victorySound);
-        
+    {   
         // Wait for sounds and effects
-        yield return new WaitForSeconds(1.5f);
+        yield return new WaitForSeconds(1f);
         
         // Show Victory screen
         gameplayUI.SetActive(false);
@@ -190,7 +166,6 @@ public class GameManager : MonoBehaviour
     {
         SceneManager.LoadScene("MainMenu"); // Your main menu scene name
         ShowMainMenu();
-        PlayMusic(menuMusic);
     }
     
     public void QuitGame()
@@ -284,33 +259,4 @@ public class GameManager : MonoBehaviour
     
     #endregion
     
-    #region Audio Management
-    
-    private void PlayMusic(AudioClip music)
-    {
-        if (audioSource != null && music != null)
-        {
-            audioSource.clip = music;
-            audioSource.loop = true;
-            audioSource.Play();
-        }
-    }
-    
-    private void PlaySound(AudioClip sound)
-    {
-        if (audioSource != null && sound != null)
-        {
-            audioSource.PlayOneShot(sound);
-        }
-    }
-
-    public void GoToNextLevel()
-    {
-        // Get the current scene index
-        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
-        
-        // Load the next scene
-        SceneManager.LoadScene(currentSceneIndex + 1);
-    }
-    #endregion
 }
