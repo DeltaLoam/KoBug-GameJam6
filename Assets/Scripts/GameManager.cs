@@ -19,7 +19,7 @@ public class GameManager : MonoBehaviour
     public GameObject gameOverUI;
     public GameObject victoryUI;
     public Text scoreText;
-    public TextMeshProUGUI fragmentCountText; // Changed to TextMeshProUGUI
+    public TextMeshProUGUI fragmentCountText;
     
     [Header("Game State")]
     public bool isGamePaused = false;
@@ -29,7 +29,6 @@ public class GameManager : MonoBehaviour
     
     private void Awake()
     {
-        // Singleton setup
         if (Instance == null)
         {
             Instance = this;
@@ -44,31 +43,23 @@ public class GameManager : MonoBehaviour
     
     private void Start()
     {
-        // Find Player in scene (if not set in Inspector)
         if (player == null)
         {
             player = FindObjectOfType<PlayerController>();
         }
         
-        // Hide all UI except Main Menu
         ShowMainMenu();
-        
-        // Count total fragments in level
         CountTotalFragments();
-        
-        // Initialize fragment display
         UpdateFragmentUI();
     }
     
     private void Update()
     {
-        // Check for Escape to pause game
         if (Input.GetKeyDown(KeyCode.Escape) && !IsMainMenuActive())
         {
             TogglePause();
         }
         
-        // Update UI
         UpdateUI();
     }
     
@@ -87,7 +78,6 @@ public class GameManager : MonoBehaviour
         UpdateFragmentUI();
     }
     
-    // New method to specifically update fragment UI
     public void UpdateFragmentUI()
     {
         if (fragmentCountText != null && player != null)
@@ -100,13 +90,8 @@ public class GameManager : MonoBehaviour
     
     public void StartGame()
     {
-        // เริ่มเกมใหม่
-        SceneManager.LoadScene("Part 1 scene 1"); // ชื่อซีนเกมของคุณ
-        
-        // Show game UI
+        SceneManager.LoadScene("Part 1 scene 1");
         ShowGameplayUI();
-        
-        // Resume time
         Time.timeScale = 1f;
         isGamePaused = false;
     }
@@ -117,13 +102,13 @@ public class GameManager : MonoBehaviour
         
         if (isGamePaused)
         {
-            Time.timeScale = 0f; // Pause game time
+            Time.timeScale = 0f;
             pauseMenuUI.SetActive(true);
             gameplayUI.SetActive(false);
         }
         else
         {
-            Time.timeScale = 1f; // Resume time
+            Time.timeScale = 1f;
             pauseMenuUI.SetActive(false);
             gameplayUI.SetActive(true);
         }
@@ -136,13 +121,7 @@ public class GameManager : MonoBehaviour
     
     private IEnumerator GameOverSequence()
     {
-        // Add fade out effect (if any)
-        PlaySound(gameOverSound);
-        
-        // Wait for sounds and effects
         yield return new WaitForSeconds(1.5f);
-        
-        // Show Game Over screen
         gameplayUI.SetActive(false);
         gameOverUI.SetActive(true);
     }
@@ -153,18 +132,15 @@ public class GameManager : MonoBehaviour
     }
     
     private IEnumerator VictorySequence()
-    {   
-        // Wait for sounds and effects
+    {
         yield return new WaitForSeconds(1f);
-        
-        // Show Victory screen
         gameplayUI.SetActive(false);
         victoryUI.SetActive(true);
     }
     
     public void ReturnToMainMenu()
     {
-        SceneManager.LoadScene("MainMenu"); // Your main menu scene name
+        SceneManager.LoadScene("MainMenu");
         ShowMainMenu();
     }
     
@@ -202,7 +178,7 @@ public class GameManager : MonoBehaviour
     private void HideAllUI()
     {
         if (mainMenuUI != null) mainMenuUI.SetActive(false);
-        if (gameplayUI != null) gameplayUI.SetActive(false);
+        if (gameplayUI != null) mainMenuUI.SetActive(false);
         if (pauseMenuUI != null) pauseMenuUI.SetActive(false);
         if (gameOverUI != null) gameOverUI.SetActive(false);
         if (victoryUI != null) victoryUI.SetActive(false);
@@ -226,12 +202,9 @@ public class GameManager : MonoBehaviour
     public void CollectFragment()
     {
         fragmentsCollected++;
-        AddScore(100); // Add score when collecting Fragment
-        
-        // Update fragment UI specifically
+        AddScore(100);
         UpdateFragmentUI();
         
-        // Notify player about ability unlocks based on fragment count
         if (player != null)
         {
             if (player.collectedFragments == 1)
@@ -250,7 +223,6 @@ public class GameManager : MonoBehaviour
             }
         }
         
-        // Check if all fragments collected
         if (fragmentsCollected >= totalFragmentsInLevel)
         {
             Victory();
@@ -258,5 +230,4 @@ public class GameManager : MonoBehaviour
     }
     
     #endregion
-    
 }
