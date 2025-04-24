@@ -726,6 +726,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 4724141343391570342, guid: 1f652d60e45d44a6baf14c6cddd7af87, type: 3}
+      propertyPath: collectedFragments
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 4724141343391570342, guid: 1f652d60e45d44a6baf14c6cddd7af87, type: 3}
       propertyPath: transformEnergyBar
       value: 
       objectReference: {fileID: 81855134}
