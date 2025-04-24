@@ -4,8 +4,10 @@ using UnityEngine.UI;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    public float semicircleMoveSpeed = 7f; // ร่างหลัก (ครึ่งวงกลม)
+    public float semicircleMoveSpeed = 7f; 
     public float triangleMoveSpeed = 5f;
+    public float jumpCooldown = 0.5f;
+    private float jumpTimer = 0f;
     public float rectangleMoveSpeed = 3f;
     public float jumpForce = 10f;
     private Rigidbody2D rb;
@@ -17,18 +19,23 @@ public class PlayerController : MonoBehaviour
     public PlayerShape currentShape = PlayerShape.Semicircle;
     public int collectedFragments = 0;
     
-    // In the PlayerController class, look for these variables
-[Header("Transform Energy")]
-public float maxTransformEnergy = 100f;
-public float currentTransformEnergy = 100f;
-public float transformEnergyDrainRate = 5f; // Base drain rate for non-base forms
-public float transformEnergyRegenRate = 20f; // Regen rate when in base form
-
-// Add these new variables for form-specific drain rates
-private float triangleDrainMultiplier = 1f; // Triangle drains at normal rate
-private float rectangleDrainMultiplier = 2f; // Rectangle drains at 2x rate
-private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x rate
-    public Image transformEnergyBar; // อ้างอิงไปยัง UI Image สำหรับแสดงพลังงาน
+    [Header("Double Dash")]
+    public int maxDashCharges = 1;  // Will become 2 when player has 3+ fragments
+    public int currentDashCharges = 1;
+    private float dashRechargeTimer = 0f;
+    public float dashRechargeTime = 1.0f;  // Time to recharge a dash
+    
+    [Header("Transform Energy")]
+    public float maxTransformEnergy = 100f;
+    public float energyIncreasePerFragment = 5f;
+    public float currentTransformEnergy = 100f;
+    public float transformEnergyDrainRate = 5f;
+    public float transformEnergyRegenRate = 20f;
+    
+    private float triangleDrainMultiplier = 1f;
+    private float rectangleDrainMultiplier = 2f;
+    private float rectangleReflectDrainMultiplier = 4f;
+    public Image transformEnergyBar;
 
     [Header("Combat")]
     public int health = 5;
@@ -40,7 +47,7 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
     private float dashTimeLeft;
     private bool isDashing = false;
     public int dashDamage = 2;
-    public bool isReflecting = false; // สำหรับการสะท้อนความเสียหายของสี่เหลี่ยม
+    public bool isReflecting = false;
     
     [Header("Visual")]
     public SpriteRenderer playerRenderer;
@@ -51,7 +58,9 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
     public GameObject dashEffect;
     public Image healthBar;
     
-    // Visual Effects Component
+    [Header("UI")]
+    public Text fragmentCountText;  // Drag your UI Text here in Inspector
+    
     private PlayerVisualEffects visualEffects;
     private GameManager gameManager;
     
@@ -59,7 +68,6 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
     {
         rb = GetComponent<Rigidbody2D>();
         
-        // ถ้าไม่ได้กำหนด SpriteRenderer ใน Inspector
         if (playerRenderer == null)
         {
             playerRenderer = GetComponent<SpriteRenderer>();
@@ -68,17 +76,21 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
         visualEffects = GetComponent<PlayerVisualEffects>();
         gameManager = FindObjectOfType<GameManager>();
         
+        // Initialize dash charges
+        currentDashCharges = maxDashCharges;
+        
         UpdatePlayerForm();
         UpdateTransformEnergyBar();
         UpdateHealthBar();
+        UpdateFragmentUI();
     }
     
     void Update()
     {
-        // ตรวจสอบการยืนบนพื้น
+        // Check if standing on ground
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, 0.2f, groundLayer);
         
-        // ไม่ต้องทำการควบคุมถ้ากำลัง dash
+        // Don't control if dashing
         if (isDashing)
         {
             dashTimeLeft -= Time.deltaTime;
@@ -93,11 +105,33 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
             return;
         }
         
-        // การเคลื่อนที่แนวนอน
+        // Update dash charge system
+        if (collectedFragments >= 3)
+        {
+            maxDashCharges = 2;  // Allow double dash with 3+ fragments
+        }
+        else
+        {
+            maxDashCharges = 1;  // Otherwise just 1 dash
+        }
+        
+        // Recharge dash over time
+        if (currentDashCharges < maxDashCharges)
+        {
+            dashRechargeTimer += Time.deltaTime;
+            if (dashRechargeTimer >= dashRechargeTime)
+            {
+                currentDashCharges++;
+                dashRechargeTimer = 0f;
+                Debug.Log("Dash recharged: " + currentDashCharges + "/" + maxDashCharges);
+            }
+        }
+        
+        // Horizontal movement
         float horizontalInput = Input.GetAxis("Horizontal");
         rb.linearVelocity = new Vector2(horizontalInput * GetCurrentSpeed(), rb.linearVelocity.y);
         
-        // ปรับการหันหน้าโดยใช้ SpriteRenderer.flipX
+        // Adjust facing using SpriteRenderer.flipX
         if (horizontalInput > 0)
         {
             playerRenderer.flipX = false;
@@ -107,20 +141,27 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
             playerRenderer.flipX = true;
         }
         
-        // การกระโดด - เฉพาะสามเหลี่ยมเท่านั้นที่กระโดดได้
-        if (currentShape == PlayerShape.Triangle && Input.GetButtonDown("Jump") && isGrounded)
+        // Jump - only triangle can jump
+        if (currentShape == PlayerShape.Triangle && Input.GetButtonDown("Jump") && jumpTimer <= 0)
         {
             rb.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
+            jumpTimer = jumpCooldown;
         }
         
-        // การเปลี่ยนรูปร่าง
+        // Reduce jump timer
+        if (jumpTimer > 0)
+        {
+            jumpTimer -= Time.deltaTime;
+        }
+        
+        // Shape changing
         if (Input.GetKeyDown(KeyCode.Alpha1) && currentShape != PlayerShape.Semicircle)
         {
             ChangeShape(PlayerShape.Semicircle);
         }
         else if (Input.GetKeyDown(KeyCode.Alpha2) && currentShape != PlayerShape.Triangle && collectedFragments >= 1)
         {
-            if (currentTransformEnergy > 10f) // ต้องมีพลังงานอย่างน้อย 10% จึงจะแปลงร่างได้
+            if (currentTransformEnergy > 10f)
             {
                 ChangeShape(PlayerShape.Triangle);
             }
@@ -131,7 +172,7 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
         }
         else if (Input.GetKeyDown(KeyCode.Alpha3) && currentShape != PlayerShape.Rectangle && collectedFragments >= 5)
         {
-            if (currentTransformEnergy > 10f) // ต้องมีพลังงานอย่างน้อย 10% จึงจะแปลงร่างได้
+            if (currentTransformEnergy > 10f)
             {
                 ChangeShape(PlayerShape.Rectangle);
             }
@@ -141,79 +182,80 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
             }
         }
         
-        // ความสามารถพิเศษของแต่ละรูปร่าง
-        
-        // สามเหลี่ยม - Dash
-        if (currentShape == PlayerShape.Triangle && Input.GetKeyDown(KeyCode.E) && dashTimer <= 0 && isGrounded)
+        // Triangle - Dash with charges
+        if (currentShape == PlayerShape.Triangle && Input.GetKeyDown(KeyCode.E) && 
+            dashTimer <= 0 && currentDashCharges > 0)
         {
             Dash();
+            currentDashCharges--;
+            Debug.Log("Dashes remaining: " + currentDashCharges);
         }
         
-        // สี่เหลี่ยม - Reflect
+        // Rectangle - Reflect
         if (currentShape == PlayerShape.Rectangle && Input.GetKeyDown(KeyCode.E))
         {
             ToggleReflect();
         }
         
-        // ลดเวลาคูลดาวน์ Dash
+        // Reduce dash cooldown timer
         if (dashTimer > 0)
         {
             dashTimer -= Time.deltaTime;
         }
         
-        // จัดการพลังงานการแปลงร่าง
+        // Manage transform energy
         ManageTransformEnergy();
     }
     
     void ManageTransformEnergy()
-{
-    // Regenerate energy when in base form
-    if (currentShape == PlayerShape.Semicircle)
     {
-        currentTransformEnergy += transformEnergyRegenRate * Time.deltaTime;
-        if (currentTransformEnergy > maxTransformEnergy)
+        // Regenerate energy when in base form
+        if (currentShape == PlayerShape.Semicircle)
         {
-            currentTransformEnergy = maxTransformEnergy;
-        }
-    }
-    // Drain energy when in other forms based on multipliers
-    else
-    {
-        float drainRate = transformEnergyDrainRate;
-        
-        // Apply form-specific drain multipliers
-        if (currentShape == PlayerShape.Triangle)
-        {
-            drainRate *= triangleDrainMultiplier;
-        }
-        else if (currentShape == PlayerShape.Rectangle)
-        {
-            // Apply higher drain if reflecting
-            if (isReflecting)
+            currentTransformEnergy += transformEnergyRegenRate * Time.deltaTime;
+            if (currentTransformEnergy > maxTransformEnergy)
             {
-                drainRate *= rectangleReflectDrainMultiplier; // 3x drain while reflecting
-            }
-            else
-            {
-                drainRate *= rectangleDrainMultiplier; // 2x drain normally
+                currentTransformEnergy = maxTransformEnergy;
             }
         }
-        
-        // Apply the calculated drain
-        currentTransformEnergy -= drainRate * Time.deltaTime;
-        
-        // Check if energy is depleted
-        if (currentTransformEnergy <= 0)
+        // Drain energy when in other forms based on multipliers
+        else
         {
-            currentTransformEnergy = 0;
-            ChangeShape(PlayerShape.Semicircle); // Revert to base form when energy is depleted
-            Debug.Log("Transform energy depleted! Reverting to base form.");
+            float drainRate = transformEnergyDrainRate;
+            
+            // Apply form-specific drain multipliers
+            if (currentShape == PlayerShape.Triangle)
+            {
+                drainRate *= triangleDrainMultiplier;
+            }
+            else if (currentShape == PlayerShape.Rectangle)
+            {
+                // Apply higher drain if reflecting
+                if (isReflecting)
+                {
+                    drainRate *= rectangleReflectDrainMultiplier;
+                }
+                else
+                {
+                    drainRate *= rectangleDrainMultiplier;
+                }
+            }
+            
+            // Apply the calculated drain
+            currentTransformEnergy -= drainRate * Time.deltaTime;
+            
+            // Check if energy is depleted
+            if (currentTransformEnergy <= 0)
+            {
+                currentTransformEnergy = 0;
+                ChangeShape(PlayerShape.Semicircle);
+                Debug.Log("Transform energy depleted! Reverting to base form.");
+            }
         }
+        
+        // Update transform energy bar in UI
+        UpdateTransformEnergyBar();
     }
-    
-    // Update transform energy bar in UI
-    UpdateTransformEnergyBar();
-}
     
     void UpdateTransformEnergyBar()
     {
@@ -228,6 +270,15 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
         if (healthBar != null)
         {
             healthBar.fillAmount = (float)health / maxHealth;
+            Debug.Log($"Health bar updated: {health}/{maxHealth} = {healthBar.fillAmount}");
+        }
+    }
+    
+    void UpdateFragmentUI()
+    {
+        if (fragmentCountText != null)
+        {
+            fragmentCountText.text = collectedFragments.ToString();
         }
     }
     
@@ -238,7 +289,7 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
             case PlayerShape.Triangle:
                 return triangleMoveSpeed;
             case PlayerShape.Rectangle:
-                return isReflecting ? 0f : rectangleMoveSpeed; // ไม่เคลื่อนที่ขณะสะท้อน
+                return isReflecting ? 0f : rectangleMoveSpeed;
             default:
                 return semicircleMoveSpeed;
         }
@@ -246,7 +297,7 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
     
     public void ChangeShape(PlayerShape newShape)
     {
-        // ยกเลิกการสะท้อนเมื่อเปลี่ยนจากสี่เหลี่ยม
+        // Cancel reflection when changing from rectangle
         if (currentShape == PlayerShape.Rectangle && isReflecting)
         {
             isReflecting = false;
@@ -255,7 +306,7 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
         currentShape = newShape;
         UpdatePlayerForm();
         
-        // เล่นเอฟเฟกต์การแปลงร่าง
+        // Play transform effect
         if (visualEffects != null)
         {
             visualEffects.PlayTransformEffect(newShape);
@@ -263,208 +314,216 @@ private float rectangleReflectDrainMultiplier = 4f; // Rectangle reflects at 3x 
     }
     
     private void UpdatePlayerForm()
-{
-    // Update sprite based on current shape
-    switch (currentShape)
     {
-        case PlayerShape.Semicircle:
-            playerRenderer.sprite = semicircleSprite;
-            break;
-        case PlayerShape.Triangle:
-            playerRenderer.sprite = triangleSprite;
-            break;
-        case PlayerShape.Rectangle:
-            // Use different sprite when reflecting
-            playerRenderer.sprite = isReflecting ? rectangleReflectSprite : rectangleSprite;
-            break;
+        // Update sprite based on current shape
+        switch (currentShape)
+        {
+            case PlayerShape.Semicircle:
+                playerRenderer.sprite = semicircleSprite;
+                break;
+            case PlayerShape.Triangle:
+                playerRenderer.sprite = triangleSprite;
+                break;
+            case PlayerShape.Rectangle:
+                playerRenderer.sprite = isReflecting ? rectangleReflectSprite : rectangleSprite;
+                break;
+        }
     }
-}
     
     void Dash()
     {
-        // กำหนดทิศทางการพุ่งตามทิศที่ Player หันหน้าอยู่ (ใช้ flipX)
         float dashDirection = playerRenderer.flipX ? -1f : 1f;
         
         isDashing = true;
         dashTimeLeft = dashDuration;
         dashTimer = dashCooldown;
         
-        // หยุดความเร็วปัจจุบัน
+        // Stop current velocity
         rb.linearVelocity = Vector2.zero;
-        // กำหนดความเร็วการพุ่ง
+        // Apply dash velocity
         rb.linearVelocity = new Vector2(dashDirection * dashSpeed, 0f);
         
         Debug.Log("Player dashing with direction: " + dashDirection + ", speed: " + dashSpeed);
         
-        // แสดงเอฟเฟกต์การพุ่ง
+        // Show dash effect
         if (dashEffect != null)
         {
             dashEffect.SetActive(true);
         }
         
-        // เพิ่มเอฟเฟกต์ Dash
+        // Add dash effect
         if (visualEffects != null)
         {
             visualEffects.StartDashEffect();
         }
         
-        // ตรวจสอบการชนกับศัตรูเมื่อพุ่ง (ปรับให้ใช้ flipX)
-        // Inside PlayerClass.cs, in the Dash() method
-
-// Check for enemies hit by dash
-Vector2 dashCheckPosition = transform.position + new Vector3(dashDirection * 1.5f, 0f, 0f);
-Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(dashCheckPosition, new Vector2(3f, 1f), 0f);
-
-foreach (Collider2D enemyCollider in hitEnemies)
-{
-    if (enemyCollider.CompareTag("Enemy"))
-    {
-        Debug.Log("Hit enemy during dash: " + enemyCollider.name);
+        // Check for enemies hit by dash
+        Vector2 dashCheckPosition = transform.position + new Vector3(dashDirection * 1.5f, 0f, 0f);
+        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(dashCheckPosition, new Vector2(3f, 1f), 0f);
         
-        // Get Enemy component and deal damage
-        Enemy enemy = enemyCollider.GetComponent<Enemy>();
-        if (enemy != null)
+        foreach (Collider2D enemyCollider in hitEnemies)
         {
-            enemy.TakeDamage(dashDamage);
-        }
-    }
-}
-    }
-    
-    void ToggleReflect()
-{
-    // Toggle the reflection state
-    isReflecting = !isReflecting;
-    
-    // Update visual appearance
-    UpdatePlayerForm();
-    
-    // Play effect
-    if (visualEffects != null)
-    {
-        visualEffects.ToggleReflectEffect(isReflecting);
-    }
-    
-    // Adjust movement during reflection
-    if (isReflecting)
-    {
-        rb.linearVelocity = Vector2.zero;
-        
-        // Debug message to confirm activation
-        Debug.Log("Reflection mode activated");
-    }
-    else
-    {
-        Debug.Log("Reflection mode deactivated");
-    }
-}
-    
-    public void TakeDamage(int damageAmount)
-{
-    // Debug to track when damage is received
-    Debug.Log("Player received damage: " + damageAmount + ", isReflecting: " + isReflecting);
-    
-    // Check for reflection (Rectangle form's special ability)
-    if (currentShape == PlayerShape.Rectangle && isReflecting)
-    {
-        // Look for nearby enemies to reflect damage back to
-        Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position, 3f);
-        bool reflectedToAny = false;
-        
-        foreach (Collider2D enemy in nearbyEnemies)
-        {
-            if (enemy.CompareTag("Enemy"))
+            if (enemyCollider.CompareTag("Enemy"))
             {
-                // Reflect double damage back to enemy
-                Enemy enemyComponent = enemy.GetComponent<Enemy>();
-                if (enemyComponent != null)
+                Debug.Log("Hit enemy during dash: " + enemyCollider.name);
+                
+                // Get Enemy component and deal damage
+                Enemy enemy = enemyCollider.GetComponent<Enemy>();
+                if (enemy != null)
                 {
-                    enemyComponent.TakeDamage(damageAmount * 2);
-                    reflectedToAny = true;
-                    Debug.Log("Reflected damage to " + enemy.name);
+                    enemy.TakeDamage(dashDamage);
                 }
             }
         }
+    }
+    
+    void ToggleReflect()
+    {
+        // Toggle the reflection state
+        isReflecting = !isReflecting;
         
-        // Play yellow blink effect when reflecting damage
-        if (visualEffects != null && reflectedToAny)
+        // Update visual appearance
+        UpdatePlayerForm();
+        
+        // Play effect
+        if (visualEffects != null)
         {
-            visualEffects.PlayReflectBlinkEffect();
+            visualEffects.ToggleReflectEffect(isReflecting);
         }
         
-        return; // Don't take damage when reflecting
+        // Adjust movement during reflection
+        if (isReflecting)
+        {
+            rb.linearVelocity = Vector2.zero;
+            Debug.Log("Reflection mode activated");
+        }
+        else
+        {
+            Debug.Log("Reflection mode deactivated");
+        }
     }
     
-    // For Rectangle form without reflection, reduce damage
-    if (currentShape == PlayerShape.Rectangle && !isReflecting)
+    public void TakeDamage(int damageAmount)
     {
-        // Rectangle takes half damage (rounded up)
-        int reducedDamage = Mathf.CeilToInt(damageAmount / 2f);
-        Debug.Log("Rectangle form reduced damage from " + damageAmount + " to " + reducedDamage);
-        damageAmount = reducedDamage;
+        // Debug to track when damage is received
+        Debug.Log("Player received damage: " + damageAmount + ", isReflecting: " + isReflecting);
+        
+        // Check for reflection (Rectangle form's special ability)
+        if (currentShape == PlayerShape.Rectangle && isReflecting)
+        {
+            // Look for nearby enemies to reflect damage back to
+            Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position, 3f);
+            bool reflectedToAny = false;
+            
+            foreach (Collider2D enemy in nearbyEnemies)
+            {
+                if (enemy.CompareTag("Enemy"))
+                {
+                    // Reflect double damage back to enemy
+                    Enemy enemyComponent = enemy.GetComponent<Enemy>();
+                    if (enemyComponent != null)
+                    {
+                        enemyComponent.TakeDamage(damageAmount * 2);
+                        reflectedToAny = true;
+                        Debug.Log("Reflected damage to " + enemy.name);
+                    }
+                }
+            }
+            
+            // Play yellow blink effect when reflecting damage
+            if (visualEffects != null && reflectedToAny)
+            {
+                visualEffects.PlayReflectBlinkEffect();
+            }
+            
+            return; // Don't take damage when reflecting
+        }
+        
+        // For Rectangle form without reflection, reduce damage
+        if (currentShape == PlayerShape.Rectangle && !isReflecting)
+        {
+            // Rectangle takes half damage (rounded up)
+            int reducedDamage = Mathf.CeilToInt(damageAmount / 2f);
+            Debug.Log("Rectangle form reduced damage from " + damageAmount + " to " + reducedDamage);
+            damageAmount = reducedDamage;
+        }
+        
+        // Apply damage
+        health -= damageAmount;
+        
+        // Make sure health doesn't go below 0
+        if (health < 0)
+        {
+            health = 0;
+        }
+        
+        // Play hurt effect
+        if (visualEffects != null)
+        {
+            visualEffects.PlayHurtEffect();
+        }
+        
+        // Update health bar
+        UpdateHealthBar();
+        
+        // Check for death
+        if (health <= 0)
+        {
+            Die();
+        }
     }
-    
-    // Apply damage
-    health -= damageAmount;
-    
-    // Make sure health doesn't go below 0
-    if (health < 0)
-    {
-        health = 0;
-    }
-    
-    // Play hurt effect
-    if (visualEffects != null)
-    {
-        visualEffects.PlayHurtEffect();
-    }
-    
-    // Update health bar
-    UpdateHealthBar();
-    
-    // Check for death
-    if (health <= 0)
-    {
-        Die();
-    }
-}
     
     void Die()
     {
         Debug.Log("Player died!");
         
-        // ปิดการควบคุม
+        // Disable control
         this.enabled = false;
         
-        // หยุดการเคลื่อนที่
+        // Stop movement
         if (rb != null)
         {
             rb.linearVelocity = Vector2.zero;
             rb.isKinematic = true;
         }
         
-        // แจ้ง GameManager ว่าเกมจบแล้ว
+        // Notify GameManager
         if (gameManager != null)
         {
             gameManager.GameOver();
         }
     }
-    
+
     public void CollectFragment()
     {
         collectedFragments++;
         Debug.Log("Collected Edge Fragment: " + collectedFragments);
         
-        // แจ้ง GameManager
+        // Increase max transform energy
+        maxTransformEnergy += energyIncreasePerFragment;
+        
+        // Optionally also increase current energy by the same amount
+        currentTransformEnergy += energyIncreasePerFragment;
+        
+        // Update the UIs
+        UpdateTransformEnergyBar();
+        UpdateFragmentUI();
+        
+        // Notify GameManager
         if (gameManager != null)
         {
             gameManager.CollectFragment();
         }
         
-        // แจ้งเตือนการปลดล็อกรูปร่าง
+        // Form unlock notifications
         if (collectedFragments == 1)
         {
             Debug.Log("Triangle form unlocked! Press 2 to transform.");
+        }
+        
+        if (collectedFragments == 3)
+        {
+            Debug.Log("Double dash unlocked!");
         }
         
         if (collectedFragments == 5)
@@ -475,7 +534,7 @@ foreach (Collider2D enemyCollider in hitEnemies)
     
     void OnTriggerEnter2D(Collider2D other)
     {
-        // ตรวจจับการเก็บ Fragment
+        // Check for fragment collection
         if (other.CompareTag("fragment"))
         {
             CollectFragment();
@@ -483,20 +542,37 @@ foreach (Collider2D enemyCollider in hitEnemies)
         }
     }
     
+    public void IncreaseMaxHealth(int amount)
+    {
+        // Store old health percentage
+        float healthPercentage = (float)health / maxHealth;
+        
+        // Increase max health
+        maxHealth += amount;
+        
+        // Scale current health to maintain the same percentage
+        health = Mathf.RoundToInt(maxHealth * healthPercentage);
+        
+        // Clamp health to max
+        health = Mathf.Clamp(health, 0, maxHealth);
+        
+        // Update the health bar
+        UpdateHealthBar();
+    }
+    
     void OnDrawGizmosSelected()
     {
-        // วาด Gizmo สำหรับแสดงพื้นที่การพุ่งโจมตีของสามเหลี่ยม
+        // Draw Gizmo for triangle dash attack area
         Gizmos.color = Color.red;
         Vector3 dashDirection = playerRenderer.flipX ? Vector3.left : Vector3.right;
         Vector3 dashCenter = transform.position + dashDirection * 1.5f;
         Gizmos.DrawWireCube(dashCenter, new Vector3(3f, 1f, 0f));
         
-        // วาด Gizmo แสดงตำแหน่งตรวจสอบพื้น
+        // Draw Gizmo for ground check
         if (groundCheck != null)
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, 0.2f);
         }
     }
-    
 }

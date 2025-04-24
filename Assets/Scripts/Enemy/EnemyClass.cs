@@ -190,7 +190,7 @@ private void FixCollider()
         if (isDashing) return;
         
         // Apply movement
-        if (currentState == EnemyState.Chase && isGrounded)
+        if (currentState == EnemyState.Chase)
         {
             rb.linearVelocity = new Vector2(moveDirection.x * moveSpeed, rb.linearVelocity.y);
         }
@@ -290,25 +290,50 @@ private void FixCollider()
         
         // this will be called by EnemyHealth.Die()
     }
+    private void Die()
+{
+    // Disable collisions and physics
+    GetComponent<Collider2D>().enabled = false;
+    rb.simulated = false;
+    
+    // Drop a fragment (change from random to always)
+    DropFragment();
+    
+    // Award score
+    if (GameManager.Instance != null)
+    {
+        GameManager.Instance.AddScore(scoreValue);
+    }
+    
+    // Destroy after animation or delay
+    Destroy(gameObject, 0.5f);
+}
     
     private void DropFragment()
+{
+    // Find fragment prefab (assuming it's in Resources folder)
+    GameObject fragmentPrefab = Resources.Load<GameObject>("EdgeFragment");
+    if (fragmentPrefab != null)
     {
-        // Find fragment prefab (assumes it's in Resources folder)
-        GameObject fragmentPrefab = Resources.Load<GameObject>("EdgeFragment");
-        if (fragmentPrefab != null)
+        // Create fragment at enemy position
+        GameObject fragment = Instantiate(fragmentPrefab, transform.position, Quaternion.identity);
+        
+        // Add some force to make it pop out nicely
+        Rigidbody2D fragmentRb = fragment.GetComponent<Rigidbody2D>();
+        if (fragmentRb != null)
         {
-            // Create fragment at enemy position
-            GameObject fragment = Instantiate(fragmentPrefab, transform.position, Quaternion.identity);
-            
-            // Add some force for a nice effect
-            Rigidbody2D fragmentRb = fragment.GetComponent<Rigidbody2D>();
-            if (fragmentRb != null)
-            {
-                float randomX = Random.Range(-2f, 2f);
-                fragmentRb.AddForce(new Vector2(randomX, 5f), ForceMode2D.Impulse);
-            }
+            float randomX = Random.Range(-2f, 2f);
+            float randomY = Random.Range(3f, 5f);
+            fragmentRb.AddForce(new Vector2(randomX, randomY), ForceMode2D.Impulse);
         }
     }
+    else
+    {
+        Debug.LogError("EdgeFragment prefab not found in Resources folder!");
+    }
+}
+
+    
     
     private void OnCollisionEnter2D(Collision2D collision)
     {

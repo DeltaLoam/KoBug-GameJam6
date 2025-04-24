@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -18,7 +19,7 @@ public class GameManager : MonoBehaviour
     public GameObject gameOverUI;
     public GameObject victoryUI;
     public Text scoreText;
-    public Text fragmentCountText;
+    public TextMeshProUGUI fragmentCountText; // Changed to TextMeshProUGUI
     
     [Header("Game State")]
     public bool isGamePaused = false;
@@ -57,28 +58,31 @@ public class GameManager : MonoBehaviour
     
     private void Start()
     {
-        // หา Player ในซีน (ถ้าไม่ได้กำหนดไว้ใน Inspector)
+        // Find Player in scene (if not set in Inspector)
         if (player == null)
         {
             player = FindObjectOfType<PlayerController>();
         }
         
-        // ซ่อน UI ทั้งหมดยกเว้น Main Menu
+        // Hide all UI except Main Menu
         ShowMainMenu();
         
-        // นับจำนวน Fragment ทั้งหมดในด่าน
+        // Count total fragments in level
         CountTotalFragments();
+        
+        // Initialize fragment display
+        UpdateFragmentUI();
     }
     
     private void Update()
     {
-        // ตรวจสอบการกด Escape เพื่อหยุดเกม
+        // Check for Escape to pause game
         if (Input.GetKeyDown(KeyCode.Escape) && !IsMainMenuActive())
         {
             TogglePause();
         }
         
-        // อัปเดต UI
+        // Update UI
         UpdateUI();
     }
     
@@ -94,6 +98,12 @@ public class GameManager : MonoBehaviour
             scoreText.text = "Score: " + score;
         }
         
+        UpdateFragmentUI();
+    }
+    
+    // New method to specifically update fragment UI
+    public void UpdateFragmentUI()
+    {
         if (fragmentCountText != null && player != null)
         {
             fragmentCountText.text = "Fragments: " + player.collectedFragments + " / " + totalFragmentsInLevel;
@@ -104,16 +114,16 @@ public class GameManager : MonoBehaviour
     
     public void StartGame()
     {
-        // เริ่มเกมใหม่
-        SceneManager.LoadScene("GameScene"); // ชื่อซีนเกมของคุณ
+        // Start new game
+        SceneManager.LoadScene("GameScene"); // Your game scene name
         
-        // แสดง UI เกม
+        // Show game UI
         ShowGameplayUI();
         
-        // เล่นเพลงระหว่างเล่นเกม
+        // Play game music
         PlayMusic(gameplayMusic);
         
-        // เวลาดำเนินต่อ
+        // Resume time
         Time.timeScale = 1f;
         isGamePaused = false;
     }
@@ -124,13 +134,13 @@ public class GameManager : MonoBehaviour
         
         if (isGamePaused)
         {
-            Time.timeScale = 0f; // หยุดเวลาเกม
+            Time.timeScale = 0f; // Pause game time
             pauseMenuUI.SetActive(true);
             gameplayUI.SetActive(false);
         }
         else
         {
-            Time.timeScale = 1f; // เวลาดำเนินต่อ
+            Time.timeScale = 1f; // Resume time
             pauseMenuUI.SetActive(false);
             gameplayUI.SetActive(true);
         }
@@ -143,13 +153,13 @@ public class GameManager : MonoBehaviour
     
     private IEnumerator GameOverSequence()
     {
-        // เพิ่มเอฟเฟกต์ fade out (ถ้ามี)
+        // Add fade out effect (if any)
         PlaySound(gameOverSound);
         
-        // รอสักครู่ให้เสียงและเอฟเฟกต์ทำงาน
+        // Wait for sounds and effects
         yield return new WaitForSeconds(1.5f);
         
-        // แสดงหน้า Game Over
+        // Show Game Over screen
         gameplayUI.SetActive(false);
         gameOverUI.SetActive(true);
     }
@@ -163,17 +173,17 @@ public class GameManager : MonoBehaviour
     {
         PlaySound(victorySound);
         
-        // รอสักครู่ให้เสียงและเอฟเฟกต์ทำงาน
+        // Wait for sounds and effects
         yield return new WaitForSeconds(1.5f);
         
-        // แสดงหน้า Victory
+        // Show Victory screen
         gameplayUI.SetActive(false);
         victoryUI.SetActive(true);
     }
     
     public void ReturnToMainMenu()
     {
-        SceneManager.LoadScene("MainMenu"); // ชื่อซีนเมนูหลักของคุณ
+        SceneManager.LoadScene("MainMenu"); // Your main menu scene name
         ShowMainMenu();
         PlayMusic(menuMusic);
     }
@@ -236,9 +246,31 @@ public class GameManager : MonoBehaviour
     public void CollectFragment()
     {
         fragmentsCollected++;
-        AddScore(100); // เพิ่มคะแนนเมื่อเก็บ Fragment
+        AddScore(100); // Add score when collecting Fragment
         
-        // ตรวจสอบว่าเก็บ Fragment ครบหรือไม่
+        // Update fragment UI specifically
+        UpdateFragmentUI();
+        
+        // Notify player about ability unlocks based on fragment count
+        if (player != null)
+        {
+            if (player.collectedFragments == 1)
+            {
+                Debug.Log("Triangle form unlocked! Press 2 to transform.");
+            }
+            
+            if (player.collectedFragments == 3)
+            {
+                Debug.Log("Double dash unlocked!");
+            }
+            
+            if (player.collectedFragments == 5)
+            {
+                Debug.Log("Rectangle form unlocked! Press 3 to transform.");
+            }
+        }
+        
+        // Check if all fragments collected
         if (fragmentsCollected >= totalFragmentsInLevel)
         {
             Victory();
@@ -267,13 +299,13 @@ public class GameManager : MonoBehaviour
         }
     }
 
-public void GoToNextLevel()
-{
-    // Get the current scene index
-    int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
-    
-    // Load the next scene
-    SceneManager.LoadScene(currentSceneIndex + 1);
-}
+    public void GoToNextLevel()
+    {
+        // Get the current scene index
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+        
+        // Load the next scene
+        SceneManager.LoadScene(currentSceneIndex + 1);
+    }
     #endregion
 }
